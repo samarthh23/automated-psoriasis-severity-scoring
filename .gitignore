@@ -21,16 +21,16 @@ data/masks/
 *.tiff
 
 # ============================================================================
-# Model Files (EXCLUDE LARGE FILES)
+# Model Files (NOW TRACKED WITH GIT LFS)
 # ============================================================================
-*.pth
-*.pt
-*.ckpt
-*.h5
-*.pkl
-*.pickle
-models/
-checkpoints/
+# *.pth  # Commented out - now tracked with Git LFS
+# *.pt
+# *.ckpt
+# *.h5
+# *.pkl
+# *.pickle
+# models/  # Commented out - now tracked with Git LFS
+# checkpoints/
 
 # ============================================================================
 # Training Logs & Outputs
