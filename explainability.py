@@ -3,15 +3,16 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
+import config
 from segmentation_model import UNet
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
-MODEL_PATH = "unet_model.pth"
-IMAGE_PATH = "data/images/" + sorted(__import__("os").listdir("data/images"))[0]
+MODEL_PATH = config.get_model_path()
+IMAGE_PATH = "data/images/" + sorted(__import__("os").listdir(config.IMAGE_DIR))[0]
 
-IMG_SIZE = 256
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+IMG_SIZE = config.IMG_SIZE
+DEVICE = config.DEVICE
 
 
 # Load model

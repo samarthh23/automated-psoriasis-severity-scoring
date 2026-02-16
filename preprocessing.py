@@ -3,9 +3,11 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-IMAGE_DIR = r"C:\Users\Samarth Hegde\Desktop\project\data\images"
-MASK_DIR = r"C:\Users\Samarth Hegde\Desktop\project\data\masks"
-IMG_SIZE = 256
+import config
+
+IMAGE_DIR = config.IMAGE_DIR
+MASK_DIR = config.MASK_DIR
+IMG_SIZE = config.IMG_SIZE
 
 
 def load_pair():

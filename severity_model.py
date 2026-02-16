@@ -1,11 +1,13 @@
 import torch
 import cv2
 import numpy as np
+
+import config
 from segmentation_model import UNet
 
-MODEL_PATH = "unet_model.pth"
-IMG_SIZE = 256
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+MODEL_PATH = config.get_model_path()
+IMG_SIZE = config.IMG_SIZE
+DEVICE = config.DEVICE
 
 
 class SeverityScorer:
@@ -27,7 +29,11 @@ class SeverityScorer:
 
     def predict_mask(self, tensor):
         with torch.no_grad():
-            pred = self.model(tensor)[0, 0].cpu().numpy()
+            pred_logits = self.model(tensor)[0, 0].cpu().numpy()
+
+            # Apply sigmoid to convert logits to probabilities
+            # Model outputs raw logits, training uses BCEWithLogitsLoss
+            pred = torch.sigmoid(torch.from_numpy(pred_logits)).numpy()
 
         binary_mask = (pred > 0.5).astype(np.uint8)
         return binary_mask
@@ -49,8 +55,7 @@ class SeverityScorer:
 
 if __name__ == "__main__":
     # Test on one training image
-    test_image = "data/images/" + \
-        sorted(__import__("os").listdir("data/images"))[0]
+    test_image = "data/images/" + sorted(__import__("os").listdir("data/images"))[0]
 
     scorer = SeverityScorer()
     image, mask, severity = scorer.analyze(test_image)
