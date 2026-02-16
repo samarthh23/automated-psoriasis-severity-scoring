@@ -91,7 +91,9 @@ def load_model():
     """Load the segmentation model"""
     with st.spinner("Loading AI model..."):
         model = UNet().to(DEVICE)
-        model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+        model.load_state_dict(
+            torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
+        )
         model.eval()
     return model
 
