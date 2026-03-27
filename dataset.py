@@ -157,16 +157,30 @@ class PsoriasisDataset(Dataset):
                     )
                 )
 
-            # Normalize
+            # Elastic transform for deformable shape learning
+            if aug_config.get("elastic_transform", False):
+                transform_list.append(
+                    A.ElasticTransform(alpha=120, sigma=120 * 0.05, p=0.3)
+                )
+
+            # Color jitter for skin tone invariance
+            if aug_config.get("color_jitter", False):
+                transform_list.append(
+                    A.HueSaturationValue(
+                        hue_shift_limit=10, sat_shift_limit=15, val_shift_limit=10, p=0.3
+                    )
+                )
+
+            # Simple normalization to [0, 1] — matches app.py inference preprocessing
             transform_list.append(
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                A.Normalize(mean=[0.0, 0.0, 0.0], std=[1.0, 1.0, 1.0], max_pixel_value=255.0)
             )
 
         else:
-            # No augmentation - just resize and normalize
+            # No augmentation - just resize and normalize to [0, 1]
             transform_list = [
                 A.Resize(self.img_size, self.img_size),
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                A.Normalize(mean=[0.0, 0.0, 0.0], std=[1.0, 1.0, 1.0], max_pixel_value=255.0),
             ]
 
         return A.Compose(transform_list)

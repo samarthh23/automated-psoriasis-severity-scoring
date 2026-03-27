@@ -53,9 +53,11 @@ USE_AUGMENTATION = True
 AUGMENTATION_CONFIG = {
     "horizontal_flip": True,
     "vertical_flip": True,
-    "rotation_range": 15,  # degrees
-    "brightness_range": 0.1,
-    "contrast_range": 0.1,
+    "rotation_range": 20,  # degrees (was 15)
+    "brightness_range": 0.15,  # (was 0.1)
+    "contrast_range": 0.15,  # (was 0.1)
+    "elastic_transform": True,  # NEW: helps learn deformable shapes
+    "color_jitter": True,  # NEW: hue/saturation shifts for skin tone invariance
 }
 
 # ============================================================================
@@ -65,7 +67,7 @@ AUGMENTATION_CONFIG = {
 # Training hyperparameters
 BATCH_SIZE = 4
 LEARNING_RATE = 1e-3
-EPOCHS = 30  # Increased for larger dataset (400 images)
+EPOCHS = 50  # Increased for larger dataset (1200 images)
 NUM_WORKERS = 0  # Set to 0 for Windows compatibility
 
 # Optimizer settings
@@ -73,7 +75,7 @@ OPTIMIZER = "adam"
 WEIGHT_DECAY = 1e-5
 
 # Loss function
-LOSS_FUNCTION = "bce_with_logits"
+LOSS_FUNCTION = "dice_bce"  # Combined Dice + BCE loss for better segmentation metrics
 
 # Device configuration
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -106,8 +108,8 @@ EXTERNAL_SOURCE_IMAGES = r"F:\archive\ISIC2018_Task1-2_Training_Input"
 EXTERNAL_SOURCE_MASKS = r"F:\archive\ISIC2018_Task1_Training_GroundTruth"
 
 # Number of samples to prepare (set to None for all available)
-# 400 images provides good balance: 280 train / 60 val / 60 test (70/15/15 split)
-SAMPLE_SIZE = 400  # Change to None to use full dataset
+# 1200 images provides good balance: 840 train / 180 val / 180 test (70/15/15 split)
+SAMPLE_SIZE = 1200  # Expanded from 400 for better model performance
 
 # ============================================================================
 # STREAMLIT CONFIGURATION

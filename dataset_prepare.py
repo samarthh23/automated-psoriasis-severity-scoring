@@ -27,8 +27,10 @@ def prepare_dataset():
     Prepare dataset by copying images and masks from external source.
 
     Features:
+    - Clears existing data before copying (fresh start)
     - Validates source directories exist
     - Uses seeded random selection for reproducibility
+    - Supports SAMPLE_SIZE=None for using all available images
     - Verifies all selected images have corresponding masks
     - Reports progress during copying
     - Provides summary statistics
@@ -48,6 +50,15 @@ def prepare_dataset():
     print(f"Target Images: {TARGET_IMAGES}")
     print(f"Target Masks: {TARGET_MASKS}")
 
+    # Clear existing data for a fresh start
+    for target_dir in [TARGET_IMAGES, TARGET_MASKS]:
+        if os.path.exists(target_dir):
+            existing = [f for f in os.listdir(target_dir) if os.path.isfile(os.path.join(target_dir, f))]
+            if existing:
+                print(f"\nClearing {len(existing)} existing files from {target_dir}...")
+                for f in existing:
+                    os.remove(os.path.join(target_dir, f))
+
     # Create target directories
     os.makedirs(TARGET_IMAGES, exist_ok=True)
     os.makedirs(TARGET_MASKS, exist_ok=True)
@@ -60,76 +71,63 @@ def prepare_dataset():
     if len(image_files) == 0:
         raise ValueError("No .jpg images found in source directory")
 
-    if SAMPLE_SIZE > len(image_files):
-        raise ValueError(
-            f"Requested sample size ({SAMPLE_SIZE}) exceeds available images ({len(image_files)})"
-        )
-
-    # Set random seed for reproducibility
-    random.seed(config.RANDOM_SEED)
-
-    # Select random sample
-    print(f"\nSelecting {SAMPLE_SIZE} random images (seed={config.RANDOM_SEED})...")
-    selected = random.sample(image_files, SAMPLE_SIZE)
-
-    # Validate that all selected images have corresponding masks
-    print("Validating mask availability...")
-    valid_pairs = []
-    missing_masks = []
-
-    for img_name in selected:
+    # First, find all valid image-mask pairs
+    print("Finding all valid image-mask pairs...")
+    all_valid_pairs = []
+    for img_name in image_files:
         base = img_name.replace(".jpg", "")
         mask_name = base + "_segmentation.png"
         src_mask = os.path.join(SOURCE_MASKS, mask_name)
-
         if os.path.exists(src_mask):
-            valid_pairs.append((img_name, mask_name))
+            all_valid_pairs.append((img_name, mask_name))
+
+    print(f"Found {len(all_valid_pairs)} images with matching masks")
+
+    # Determine how many to use
+    if SAMPLE_SIZE is None:
+        selected_pairs = all_valid_pairs
+        print(f"\nUsing ALL {len(selected_pairs)} valid image-mask pairs")
+    else:
+        if SAMPLE_SIZE > len(all_valid_pairs):
+            print(f"\nWarning: Requested {SAMPLE_SIZE} but only {len(all_valid_pairs)} valid pairs available.")
+            print(f"Using all {len(all_valid_pairs)} valid pairs instead.")
+            selected_pairs = all_valid_pairs
         else:
-            missing_masks.append(img_name)
-
-    if missing_masks:
-        print(f"\nWarning: {len(missing_masks)} images have no corresponding masks:")
-        for img in missing_masks[:5]:  # Show first 5
-            print(f"  - {img}")
-        if len(missing_masks) > 5:
-            print(f"  ... and {len(missing_masks) - 5} more")
-
-    print(f"\nValid image-mask pairs: {len(valid_pairs)}")
+            # Set random seed for reproducibility
+            random.seed(config.RANDOM_SEED)
+            selected_pairs = random.sample(all_valid_pairs, SAMPLE_SIZE)
+            print(f"\nSelected {SAMPLE_SIZE} random image-mask pairs (seed={config.RANDOM_SEED})")
 
     # Copy files with progress reporting
-    print(f"\nCopying {len(valid_pairs)} image-mask pairs...")
-    copied_images = 0
-    copied_masks = 0
+    print(f"\nCopying {len(selected_pairs)} image-mask pairs...")
+    copied = 0
 
-    for i, (img_name, mask_name) in enumerate(valid_pairs, 1):
+    for i, (img_name, mask_name) in enumerate(selected_pairs, 1):
         src_img = os.path.join(SOURCE_IMAGES, img_name)
         src_mask = os.path.join(SOURCE_MASKS, mask_name)
 
         dst_img = os.path.join(TARGET_IMAGES, img_name)
         dst_mask = os.path.join(TARGET_MASKS, mask_name)
 
-        # Copy files
         shutil.copy(src_img, dst_img)
         shutil.copy(src_mask, dst_mask)
+        copied += 1
 
-        copied_images += 1
-        copied_masks += 1
-
-        # Progress reporting every 50 files
-        if i % 50 == 0 or i == len(valid_pairs):
-            print(f"  Progress: {i}/{len(valid_pairs)} pairs copied")
+        # Progress reporting every 100 files
+        if i % 100 == 0 or i == len(selected_pairs):
+            print(f"  Progress: {i}/{len(selected_pairs)} pairs copied")
 
     # Summary
     print("\n" + "=" * 70)
     print("DATASET PREPARATION COMPLETE")
     print("=" * 70)
-    print(f"Images copied: {copied_images}")
-    print(f"Masks copied: {copied_masks}")
+    print(f"Images copied: {copied}")
+    print(f"Masks copied: {copied}")
     print(f"Target directory: {TARGET_IMAGES}")
     print(f"\nWith {config.TRAIN_RATIO}/{config.VAL_RATIO}/{config.TEST_RATIO} split:")
-    print(f"  - Training: ~{int(copied_images * config.TRAIN_RATIO)} images")
-    print(f"  - Validation: ~{int(copied_images * config.VAL_RATIO)} images")
-    print(f"  - Test: ~{int(copied_images * config.TEST_RATIO)} images")
+    print(f"  - Training: ~{int(copied * config.TRAIN_RATIO)} images")
+    print(f"  - Validation: ~{int(copied * config.VAL_RATIO)} images")
+    print(f"  - Test: ~{int(copied * config.TEST_RATIO)} images")
     print("=" * 70)
 
 
