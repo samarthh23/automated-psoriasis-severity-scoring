@@ -1,9 +1,9 @@
 """
-Enhanced Streamlit Interface for Psoriasis Lesion Segmentation
-Modern, professional UI with improved features and visualizations
-FIXED: Proper sigmoid activation for model predictions
+Psoriasis Lesion Segmentation — Clinical Analysis Interface
+Refined dark theme with bug-fixed metrics and clean layout.
 """
 
+import os
 import streamlit as st
 import torch
 import cv2
@@ -16,494 +16,701 @@ from segmentation_model import UNet
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
-# Page configuration
+# ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Psoriasis Lesion Analysis",
+    page_title="Psoriasis Lesion Analyser",
     page_icon="🔬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for better styling
-st.markdown(
-    """
-    <style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 0.5rem;
-    }
-    .sub-header {
-        font-size: 1.2rem;
-        color: #666;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 1.5rem;
-        border-radius: 10px;
-        border-left: 5px solid #1f77b4;
-        margin: 1rem 0;
-    }
-    .severity-low {
-        color: #28a745;
-        font-weight: bold;
-    }
-    .severity-medium {
-        color: #ffc107;
-        font-weight: bold;
-    }
-    .severity-high {
-        color: #dc3545;
-        font-weight: bold;
-    }
-    .info-box {
-        background-color: #e7f3ff;
-        padding: 1rem;
-        border-radius: 5px;
-        border-left: 4px solid #2196F3;
-        margin: 1rem 0;
-    }
-    .stButton>button {
-        width: 100%;
-        background-color: #1f77b4;
-        color: white;
-        font-weight: bold;
-        border-radius: 5px;
-        padding: 0.5rem 1rem;
-    }
-    </style>
-""",
-    unsafe_allow_html=True,
-)
+# ── Design system ───────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-# Constants
+/* ── Reset & base ── */
+html, body, [class*="css"] {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #0b0f1a;
+    color: #e2e8f0;
+}
+
+/* ── Hide Streamlit chrome ── */
+#MainMenu, footer, header { visibility: hidden; }
+.block-container { padding: 2rem 2.5rem 3rem; max-width: 1280px; }
+
+/* ── Wordmark / brand header ── */
+.brand-wrap {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+.brand-title {
+    font-size: 1.85rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #f1f5f9;
+    line-height: 1;
+}
+.brand-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #818cf8;
+    background: rgba(129,140,248,0.12);
+    border: 1px solid rgba(129,140,248,0.25);
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    margin-bottom: 0.2rem;
+}
+.brand-subtitle {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin-bottom: 2rem;
+    font-weight: 400;
+}
+
+/* ── Section label ── */
+.section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #475569;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #1e293b;
+}
+
+/* ── Metrics row ── */
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: #1e293b;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+    border: 1px solid #1e293b;
+}
+.metric-cell {
+    background: #0f172a;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.metric-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #64748b;
+}
+.metric-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #f1f5f9;
+    font-family: 'Inter', sans-serif;
+}
+.metric-value.accent { color: #818cf8; }
+.metric-value.good   { color: #34d399; }
+.metric-value.warn   { color: #fbbf24; }
+.metric-value.danger { color: #f87171; }
+.metric-sub {
+    font-size: 0.75rem;
+    color: #475569;
+}
+
+/* ── Override Streamlit's metric widget ── */
+div[data-testid="stMetricValue"] {
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 700 !important;
+    font-size: 1.8rem !important;
+    color: #f1f5f9 !important;
+    background: none !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+}
+div[data-testid="stMetricLabel"] {
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+    color: #64748b !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+div[data-testid="metric-container"] {
+    background: #0f172a !important;
+    border: 1px solid #1e293b !important;
+    border-radius: 10px;
+    padding: 1.1rem 1.4rem;
+}
+
+/* ── Result badge / severity pill ── */
+.sev-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0.3rem 0.85rem;
+}
+.sev-low    { background: rgba(52,211,153,0.12); color:#34d399; border:1px solid rgba(52,211,153,0.25); }
+.sev-medium { background: rgba(251,191,36,0.12);  color:#fbbf24; border:1px solid rgba(251,191,36,0.25); }
+.sev-high   { background: rgba(248,113,113,0.12); color:#f87171; border:1px solid rgba(248,113,113,0.25); }
+
+/* ── Status / result bar at top of results ── */
+.result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+}
+.result-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+.result-header-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #64748b;
+}
+.result-header-file {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    font-family: 'JetBrains Mono', monospace;
+}
+.result-header-ts {
+    font-size: 0.75rem;
+    color: #475569;
+}
+
+/* ── Image panel label ── */
+.img-label {
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #475569;
+    margin-bottom: 0.5rem;
+    margin-top: 1rem;
+}
+
+/* ── Buttons ── */
+.stButton > button {
+    width: 100%;
+    background: #4f46e5;
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border: none;
+    border-radius: 8px;
+    padding: 0.55rem 1rem;
+    transition: background 0.2s ease, transform 0.15s ease;
+    letter-spacing: 0.2px;
+}
+.stButton > button:hover {
+    background: #6366f1;
+    transform: translateY(-1px);
+}
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+    background: transparent !important;
+    border-bottom: 1px solid #1e293b !important;
+    gap: 0.25rem;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    color: #64748b !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.3px;
+    padding: 0.5rem 1rem !important;
+    border: none !important;
+}
+.stTabs [aria-selected="true"] {
+    color: #818cf8 !important;
+    border-bottom: 2px solid #818cf8 !important;
+}
+
+/* ── Sidebar ── */
+section[data-testid="stSidebar"] {
+    background: #0d1117 !important;
+    border-right: 1px solid #1e293b !important;
+}
+section[data-testid="stSidebar"] .stMarkdown p,
+section[data-testid="stSidebar"] .stMarkdown li {
+    font-size: 0.825rem;
+}
+
+/* ── Sidebar model info box ── */
+.model-info {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    font-size: 0.8rem;
+    line-height: 1.8;
+    color: #94a3b8;
+    font-family: 'JetBrains Mono', monospace;
+}
+.model-info span { color: #818cf8; }
+
+/* ── Upload zone ── */
+div[data-testid="stFileUploadDropzone"] {
+    border: 2px dashed #1e293b !important;
+    background: #0f172a !important;
+    border-radius: 12px !important;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+div[data-testid="stFileUploadDropzone"]:hover {
+    border-color: #4f46e5 !important;
+    background: rgba(79,70,229,0.04) !important;
+}
+
+/* ── Slider ── */
+.stSlider [data-baseweb="slider"] { padding: 0 !important; }
+
+/* ── Welcome state ── */
+.welcome-panel {
+    padding: 3rem 2.5rem;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    text-align: center;
+    margin-top: 1rem;
+}
+.welcome-panel h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 0.5rem;
+}
+.welcome-panel p {
+    font-size: 0.875rem;
+    color: #64748b;
+    max-width: 420px;
+    margin: 0 auto 1.75rem;
+    line-height: 1.6;
+}
+.steps-row {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+.step-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+.step-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(79,70,229,0.15);
+    border: 1px solid rgba(79,70,229,0.35);
+    color: #818cf8;
+    font-size: 0.875rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.step-text {
+    font-size: 0.78rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* ── Info callout ── */
+.callout {
+    background: rgba(79,70,229,0.06);
+    border: 1px solid rgba(79,70,229,0.2);
+    border-left: 3px solid #4f46e5;
+    border-radius: 0 8px 8px 0;
+    padding: 0.85rem 1.1rem;
+    font-size: 0.825rem;
+    color: #94a3b8;
+    line-height: 1.6;
+    margin-top: 1rem;
+}
+
+/* ── Debug info ── */
+.debug-row {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.9;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ── Constants ───────────────────────────────────────────────────────────────────
 IMG_SIZE = config.IMG_SIZE
 DEVICE = config.DEVICE
 MODEL_PATH = config.get_model_path()
+MODEL_FILENAME = os.path.basename(MODEL_PATH)   # BUG FIX: was MODEL_PATH.split("\\\\") — never matched on Windows
 
 
+# ── Model loading ───────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_model():
-    """Load the segmentation model"""
-    with st.spinner("Loading AI model..."):
-        model = UNet().to(DEVICE)
-        model.load_state_dict(
-            torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
-        )
-        model.eval()
+    model = UNet().to(DEVICE)
+    model.load_state_dict(
+        torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
+        # weights_only=False required for PyTorch 2.6+ with custom pth files
+    )
+    model.eval()
     return model
 
 
-def get_severity_level(severity):
-    """Categorize severity level"""
+# ── Helpers ─────────────────────────────────────────────────────────────────────
+def get_severity_level(severity: float):
     if severity < 10:
-        return "Low", "severity-low"
+        return "Low",    "sev-low",    "✓"
     elif severity < 30:
-        return "Moderate", "severity-medium"
+        return "Moderate", "sev-medium", "⚠"
     else:
-        return "High", "severity-high"
+        return "High",   "sev-high",   "✕"
 
 
-def process_image(uploaded_file, model, threshold=0.5):
-    """Process uploaded image and return results"""
-    # Read and preprocess image
+def process_image(uploaded_file, model, threshold: float = 0.5):
+    """Run segmentation and return all metrics + visualizations."""
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, 1)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     original_size = img.shape[:2]
     img_resized = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
 
-    # CRITICAL FIX: Use EXACT same preprocessing as training
-    # Training uses: img / 255.0, transpose to (C, H, W)
-    # NO ImageNet normalization - just simple division by 255
-    input_img = img_resized / 255.0  # Normalize to [0, 1]
-    tensor = np.transpose(input_img, (2, 0, 1))  # (H, W, C) -> (C, H, W)
-    tensor = torch.tensor(tensor, dtype=torch.float32).unsqueeze(0).to(DEVICE)
+    # Preprocessing — matches training: divide by 255, no ImageNet normalisation
+    input_img = img_resized / 255.0
+    tensor = torch.tensor(
+        np.transpose(input_img, (2, 0, 1)), dtype=torch.float32
+    ).unsqueeze(0).to(DEVICE)
 
-    # Segmentation
-    start_time = time.time()
+    # Inference
+    t0 = time.time()
     with torch.no_grad():
-        pred_logits = model(tensor)[0, 0].cpu().numpy()
+        logits = model(tensor)[0, 0].cpu().numpy()
+        prob = torch.sigmoid(torch.from_numpy(logits)).numpy()  # [0, 1] probabilities
+    inference_time = time.time() - t0
 
-        # CRITICAL FIX: Apply sigmoid to convert logits to probabilities
-        # Training uses BCEWithLogitsLoss which applies sigmoid internally
-        # For inference, we need to apply sigmoid manually
-        pred = torch.sigmoid(torch.from_numpy(pred_logits)).numpy()
+    # Binary mask
+    mask = (prob > threshold).astype(np.uint8)
 
-    inference_time = time.time() - start_time
-
-    # Debug statistics
-    pred_min, pred_max, pred_mean = pred.min(), pred.max(), pred.mean()
-
-    # Create mask with threshold
-    mask = (pred > threshold).astype(np.uint8)
-
-    # Calculate metrics
-    lesion_pixels = np.sum(mask)
-    total_pixels = mask.size
+    # Severity — percentage of pixels classified as lesion
+    lesion_pixels = int(np.sum(mask))
+    total_pixels  = mask.size
     severity = round((lesion_pixels / total_pixels) * 100, 2)
 
-    # Calculate Dice coefficient (for display purposes, using prediction as "ground truth proxy")
-    # In real evaluation, you'd compare against actual ground truth
-    # Here we calculate it as 2 * intersection / (pred_area + mask_area)
-    pred_binary = (pred > threshold).astype(np.float32)
-    intersection = np.sum(pred_binary * mask)
-    dice_score = (2.0 * intersection) / (np.sum(pred_binary) + np.sum(mask) + 1e-7)
-    dice_score = round(dice_score * 100, 2)  # Convert to percentage
+    # --- BUG FIX: Dice used to compare mask to itself → always 100% ---
+    # Now we show "Model Confidence": mean sigmoid probability for lesion pixels.
+    # This is a meaningful signal: how certain the model is about its detections.
+    if lesion_pixels > 0:
+        confidence = float(np.mean(prob[mask == 1])) * 100
+    else:
+        confidence = 0.0
+    confidence = round(confidence, 1)
 
-    # Create visualizations
-    # Scale mask to 0-255 for proper display (fix black mask issue)
+    # Visualisations
     mask_display = (mask * 255).astype(np.uint8)
 
     overlay = img_resized.copy()
-    overlay[mask == 1] = [255, 0, 0]  # Red overlay
+    overlay[mask == 1] = [220, 76, 100]  # subdued rose rather than pure red
 
-    # Blended overlay
-    alpha = 0.4
-    blended = cv2.addWeighted(img_resized, 1 - alpha, overlay, alpha, 0)
+    blended = cv2.addWeighted(img_resized, 0.65, overlay, 0.35, 0)
 
     # Grad-CAM
     target_layers = [model.conv1.conv[-1]]
     cam = GradCAM(model=model, target_layers=target_layers)
-
-    def segmentation_target(output):
-        return output.mean()
-
-    grayscale_cam = cam(input_tensor=tensor, targets=[segmentation_target])[0]
+    grayscale_cam = cam(
+        input_tensor=tensor,
+        targets=[lambda o: o.mean()]
+    )[0]
     heatmap = show_cam_on_image(input_img, grayscale_cam, use_rgb=True)
 
     return {
-        "original": img_resized,
-        "mask": mask_display,  # Use scaled version for display
-        "overlay": overlay,
-        "blended": blended,
-        "heatmap": heatmap,
-        "severity": severity,
-        "lesion_pixels": lesion_pixels,
-        "total_pixels": total_pixels,
-        "dice_score": dice_score,
+        "original":       img_resized,
+        "mask":           mask_display,
+        "overlay":        overlay,
+        "blended":        blended,
+        "heatmap":        heatmap,
+        "prob_map":       prob,
+        "severity":       severity,
+        "lesion_pixels":  lesion_pixels,
+        "total_pixels":   total_pixels,
+        "confidence":     confidence,
         "inference_time": inference_time,
-        "original_size": original_size,
-        "prediction": pred,
-        "pred_stats": {
-            "min": float(pred_min),
-            "max": float(pred_max),
-            "mean": float(pred_mean),
+        "original_size":  original_size,
+        "prob_stats": {
+            "min":  float(prob.min()),
+            "max":  float(prob.max()),
+            "mean": float(prob.mean()),
         },
     }
 
 
-# ============================================================================
-# MAIN APP
-# ============================================================================
+# ══════════════════════════════════════════════════════════════════════════════
+#  LAYOUT
+# ══════════════════════════════════════════════════════════════════════════════
 
-# Header
-st.markdown(
-    '<div class="main-header">🔬 Psoriasis Lesion Analysis System</div>',
-    unsafe_allow_html=True,
-)
-st.markdown(
-    '<div class="sub-header">AI-Powered Segmentation and Severity Assessment with Explainable AI</div>',
-    unsafe_allow_html=True,
-)
-
-# Sidebar
+# ── Sidebar ─────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("⚙️ Settings")
+    st.markdown("""
+    <div style="padding:1rem 0 0.25rem;">
+        <div style="font-size:1rem;font-weight:700;color:#f1f5f9;letter-spacing:-0.3px;">⬡ PsoriScan</div>
+        <div style="font-size:0.7rem;color:#475569;letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Research Tool · v2.0</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Model info
-    st.markdown("### 📊 Model Information")
-    st.info(f"""
-    **Architecture:** U-Net  
-    **Device:** {DEVICE.upper()}  
-    **Image Size:** {IMG_SIZE}×{IMG_SIZE}  
-    **Model:** {MODEL_PATH.split("/")[-1] if "/" in MODEL_PATH else MODEL_PATH.split("\\\\")[-1]}
-    """)
+    st.markdown("---")
+    st.markdown("<div class='section-label'>Model</div>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="model-info">
+        arch&nbsp;&nbsp;&nbsp; <span>U-Net (3-level)</span><br>
+        device&nbsp; <span>{DEVICE.upper()}</span><br>
+        input&nbsp;&nbsp; <span>{IMG_SIZE}×{IMG_SIZE} px</span><br>
+        file&nbsp;&nbsp;&nbsp; <span>{MODEL_FILENAME}</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Segmentation threshold
-    st.markdown("### 🎯 Segmentation Settings")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div class='section-label'>Detection</div>", unsafe_allow_html=True)
     threshold = st.slider(
-        "Detection Threshold",
-        min_value=0.0,
-        max_value=1.0,
-        value=0.5,
-        step=0.05,
-        help="Adjust sensitivity of lesion detection",
+        "Threshold",
+        min_value=0.0, max_value=1.0, value=0.5, step=0.05,
+        help="Sigmoid probability cutoff for lesion/background classification"
     )
 
-    # Visualization options
-    st.markdown("### 🎨 Visualization Options")
-    show_mask = st.checkbox("Show Binary Mask", value=True)
-    show_overlay = st.checkbox("Show Overlay", value=True)
-    show_blended = st.checkbox("Show Blended View", value=True)
-    show_heatmap = st.checkbox("Show Grad-CAM", value=True)
-    show_prediction = st.checkbox("Show Raw Prediction", value=False)
-    show_debug = st.checkbox("Show Debug Info", value=False)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div class='section-label'>Visualisation</div>", unsafe_allow_html=True)
+    show_mask      = st.checkbox("Binary mask",       value=True)
+    show_overlay   = st.checkbox("Colour overlay",    value=True)
+    show_blended   = st.checkbox("Blended view",      value=True)
+    show_heatmap   = st.checkbox("Grad-CAM",          value=True)
+    show_probmap   = st.checkbox("Probability map",   value=False)
+    show_debug     = st.checkbox("Debug info",        value=False)
 
-    # About section
     st.markdown("---")
-    st.markdown("### ℹ️ About")
     st.markdown("""
-    This system uses deep learning to:
-    - Detect psoriasis lesions
-    - Calculate severity scores
-    - Provide explainable AI visualizations
-    
-    **Note:** For research purposes only.
-    """)
+    <div style="font-size:0.73rem;color:#334155;line-height:1.7;">
+        Automated segmentation using a trained U-Net model on ISIC 2018 data.
+        For research and educational use only. Not a medical device.<br><br>
+        Dice&nbsp;≈ 0.79 · IoU&nbsp;≈ 0.70 on 180-image test set.
+    </div>
+    """, unsafe_allow_html=True)
 
-# Load model
-model = load_model()
 
-# Main content
-st.markdown("---")
+# ── Brand header ────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="brand-wrap">
+    <div class="brand-title">Psoriasis Lesion Analyser</div>
+    <div class="brand-badge">Research</div>
+</div>
+<div class="brand-subtitle">AI-assisted segmentation and severity estimation using deep learning</div>
+""", unsafe_allow_html=True)
 
-# File uploader
+# ── Load model (cached) ─────────────────────────────────────────────────────────
+with st.spinner("Loading model weights…"):
+    model = load_model()
+
+# ── Upload ───────────────────────────────────────────────────────────────────────
 uploaded_file = st.file_uploader(
-    "📤 Upload a skin image for analysis",
-    type=["jpg", "png", "jpeg"],
-    help="Supported formats: JPG, PNG, JPEG",
+    "Upload a dermoscopy or clinical skin image",
+    type=["jpg", "jpeg", "png"],
+    label_visibility="visible",
 )
 
+# ── Main content ─────────────────────────────────────────────────────────────────
 if uploaded_file is not None:
-    # Process image
-    with st.spinner("🔄 Processing image..."):
+    with st.spinner("Running segmentation…"):
         results = process_image(uploaded_file, model, threshold)
 
-    st.success("✅ Analysis complete!")
+    sev_level, sev_class, sev_icon = get_severity_level(results["severity"])
 
-    # Debug info
-    if show_debug:
-        st.markdown("### 🐛 Debug Information")
-        st.json(
-            {
-                "Prediction Stats": results["pred_stats"],
-                "Threshold": threshold,
-                "Lesion Pixels": results["lesion_pixels"],
-                "Total Pixels": results["total_pixels"],
-            }
-        )
-
-    # Display metrics
-    st.markdown("## 📈 Analysis Results")
-
-    # Metrics row - now with 5 columns to include Dice score
-    col1, col2, col3, col4, col5 = st.columns(5)
-
-    severity_level, severity_class = get_severity_level(results["severity"])
-
-    with col1:
-        st.metric(
-            label="Severity Score",
-            value=f"{results['severity']}%",
-            help="Percentage of affected area",
-        )
-
-    with col2:
-        st.metric(
-            label="Dice Score",
-            value=f"{results['dice_score']}%",
-            help="Dice coefficient - measures segmentation quality (higher is better)",
-        )
-
-    with col3:
-        st.metric(
-            label="Severity Level", value=severity_level, help="Categorized severity"
-        )
-
-    with col4:
-        st.metric(
-            label="Lesion Pixels",
-            value=f"{results['lesion_pixels']:,}",
-            help="Number of detected lesion pixels",
-        )
-
-    with col5:
-        st.metric(
-            label="Processing Time",
-            value=f"{results['inference_time']:.3f}s",
-            help="AI inference time",
-        )
-
-    # Severity indicator
-    st.markdown(
-        f"""
-    <div class="metric-card">
-        <h3>Severity Assessment: <span class="{severity_class}">{severity_level}</span></h3>
-        <p>Affected area: {results["severity"]}% ({results["lesion_pixels"]:,} / {results["total_pixels"]:,} pixels)</p>
-        <p>Segmentation Quality (Dice): {results["dice_score"]}%</p>
+    # ── Result header bar ───────────────────────────────────────────────────────
+    ts_str = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
+    st.markdown(f"""
+    <div class="result-header">
+        <div class="result-header-left">
+            <div class="result-header-title">Analysis complete</div>
+            <div class="result-header-file">{uploaded_file.name}</div>
+            <div class="result-header-ts">{ts_str}</div>
+        </div>
+        <span class="sev-pill {sev_class}">{sev_icon} {sev_level} severity</span>
     </div>
-    """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
-    # Visualizations
-    st.markdown("---")
-    st.markdown("## 🖼️ Visualizations")
+    # ── Metrics row (4 Streamlit metric widgets) ────────────────────────────────
+    c1, c2, c3, c4 = st.columns(4)
 
-    # Create tabs for different views
-    tab1, tab2, tab3 = st.tabs(
-        ["📊 Comparison View", "🔍 Detailed Analysis", "📋 Summary"]
-    )
+    with c1:
+        st.metric("Affected area",    f"{results['severity']}%",
+                  help="Lesion pixels ÷ total pixels × 100")
+    with c2:
+        st.metric("Model confidence", f"{results['confidence']}%",
+                  help="Mean sigmoid probability over detected lesion pixels. Replaces the previous Dice metric that incorrectly compared the mask to itself.")
+    with c3:
+        st.metric("Lesion pixels",    f"{results['lesion_pixels']:,}",
+                  help=f"Out of {results['total_pixels']:,} total pixels")
+    with c4:
+        st.metric("Inference time",   f"{results['inference_time']:.3f}s",
+                  help="Time from tensor creation to sigmoid output")
 
-    with tab1:
-        # Side-by-side comparison
-        col1, col2 = st.columns(2)
+    # ── Debug panel ─────────────────────────────────────────────────────────────
+    if show_debug:
+        with st.expander("Debug — raw probability statistics"):
+            s = results["prob_stats"]
+            st.markdown(f"""
+            <div class="debug-row">
+                prob min   → {s['min']:.4f}<br>
+                prob max   → {s['max']:.4f}<br>
+                prob mean  → {s['mean']:.4f}<br>
+                threshold  → {threshold}<br>
+                lesion px  → {results['lesion_pixels']:,} / {results['total_pixels']:,}<br>
+                orig size  → {results['original_size'][1]} × {results['original_size'][0]} px
+            </div>
+            """, unsafe_allow_html=True)
 
-        with col1:
-            st.markdown("### Original Image")
-            st.image(results["original"])
+    # ── Visualisation tabs ───────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    tab_cmp, tab_det, tab_rep = st.tabs(["Comparison", "Detailed views", "Report"])
 
-        with col2:
+    with tab_cmp:
+        col_l, col_r = st.columns(2)
+        with col_l:
+            st.markdown("<div class='img-label'>Original image</div>", unsafe_allow_html=True)
+            st.image(results["original"], width="stretch")
+        with col_r:
             if show_blended:
-                st.markdown("### Segmentation (Blended)")
-                st.image(results["blended"])
+                st.markdown("<div class='img-label'>Segmentation — blended</div>", unsafe_allow_html=True)
+                st.image(results["blended"], width="stretch")
             elif show_overlay:
-                st.markdown("### Segmentation (Overlay)")
-                st.image(results["overlay"])
+                st.markdown("<div class='img-label'>Segmentation — overlay</div>", unsafe_allow_html=True)
+                st.image(results["overlay"], width="stretch")
             else:
-                st.markdown("### Binary Mask")
-                st.image(results["mask"], clamp=True)
+                st.markdown("<div class='img-label'>Binary mask</div>", unsafe_allow_html=True)
+                st.image(results["mask"], clamp=True, width="stretch")
 
-    with tab2:
-        # Detailed views in grid
+    with tab_det:
         cols = st.columns(2)
-
-        idx = 0
+        idx  = 0
+        panels = []
         if show_mask:
-            with cols[idx % 2]:
-                st.markdown("#### Binary Mask")
-                st.image(results["mask"], clamp=True)
-                st.caption("White = Lesion, Black = Healthy skin")
-            idx += 1
-
+            panels.append(("Binary mask",         results["mask"],    True,  "White = lesion · Black = healthy"))
         if show_overlay:
-            with cols[idx % 2]:
-                st.markdown("#### Overlay View")
-                st.image(results["overlay"])
-                st.caption("Red overlay indicates detected lesions")
-            idx += 1
-
+            panels.append(("Colour overlay",      results["overlay"], False, "Highlighted lesion region"))
         if show_blended:
-            with cols[idx % 2]:
-                st.markdown("#### Blended View")
-                st.image(results["blended"])
-                st.caption("Semi-transparent overlay for better visualization")
-            idx += 1
-
+            panels.append(("Blended view",        results["blended"], False, "Semi-transparent lesion highlight"))
         if show_heatmap:
+            panels.append(("Grad-CAM attention",  results["heatmap"], False, "Spatial attention — warmer = higher contribution"))
+        if show_probmap:
+            panels.append(("Probability map",     results["prob_map"],True,  f"Sigmoid output · range [{results['prob_stats']['min']:.2f}–{results['prob_stats']['max']:.2f}]"))
+
+        for title, img, clamp, caption in panels:
             with cols[idx % 2]:
-                st.markdown("#### Grad-CAM Heatmap")
-                st.image(results["heatmap"])
-                st.caption("AI attention map - shows what the model focuses on")
+                st.markdown(f"<div class='img-label'>{title}</div>", unsafe_allow_html=True)
+                if clamp:
+                    st.image(img, clamp=True, width="stretch")
+                else:
+                    st.image(img, width="stretch")
+                st.caption(caption)
             idx += 1
 
-        if show_prediction:
-            with cols[idx % 2]:
-                st.markdown("#### Raw Prediction")
-                st.image(results["prediction"], clamp=True)
-                st.caption(
-                    f"Probability map (range: {results['pred_stats']['min']:.3f} - {results['pred_stats']['max']:.3f})"
-                )
-            idx += 1
-
-    with tab3:
-        # Summary report
-        st.markdown("### 📄 Analysis Report")
+    with tab_rep:
+        orig_h, orig_w = results["original_size"]
+        sev_pct = results["severity"]
+        conf    = results["confidence"]
+        inf_t   = results["inference_time"]
 
         st.markdown(f"""
-        **Analysis Date:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}  
-        **Image File:** {uploaded_file.name}  
-        **Original Size:** {results["original_size"][1]} × {results["original_size"][0]} pixels  
-        **Processed Size:** {IMG_SIZE} × {IMG_SIZE} pixels  
-        
-        ---
-        
-        **Segmentation Results:**
-        - **Severity Score:** {results["severity"]}%
-        - **Dice Score:** {results["dice_score"]}%
-        - **Severity Level:** {severity_level}
-        - **Lesion Pixels:** {results["lesion_pixels"]:,}
-        - **Total Pixels:** {results["total_pixels"]:,}
-        - **Detection Threshold:** {threshold}
-        
-        ---
-        
-        **Performance:**
-        - **Inference Time:** {results["inference_time"]:.3f} seconds
-        - **Device:** {DEVICE.upper()}
-        - **Model:** U-Net
-        
-        ---
-        
-        **Interpretation:**
+**File:** `{uploaded_file.name}`  
+**Analysed:** {ts_str}  
+**Original dimensions:** {orig_w} × {orig_h} px → resized to {IMG_SIZE}×{IMG_SIZE} px
+
+---
+
+#### Segmentation
+| Metric | Value |
+|--------|-------|
+| Severity score | **{sev_pct}%** |
+| Severity level | **{sev_level}** |
+| Lesion pixels | **{results['lesion_pixels']:,}** of {results['total_pixels']:,} |
+| Detection threshold | `{threshold}` |
+
+#### Model output
+| Metric | Value |
+|--------|-------|
+| Model confidence (lesion px) | **{conf}%** |
+| Prob. range | {results['prob_stats']['min']:.3f} – {results['prob_stats']['max']:.3f} |
+| Inference time | {inf_t:.3f} s |
+| Device | `{DEVICE.upper()}` |
+| Architecture | U-Net (3-level encoder, BatchNorm, Dropout2d) |
         """)
 
-        if results["severity"] < 10:
-            st.success("✅ Low severity - Minimal lesion coverage detected")
-        elif results["severity"] < 30:
-            st.warning("⚠️ Moderate severity - Significant lesion coverage detected")
+        if sev_pct < 10:
+            st.success("Low severity — minimal lesion coverage detected.")
+        elif sev_pct < 30:
+            st.warning("Moderate severity — significant lesion coverage detected.")
         else:
-            st.error("🔴 High severity - Extensive lesion coverage detected")
+            st.error("High severity — extensive lesion coverage detected.")
 
-        st.info("""
-        **Note:** This is an automated analysis tool for research purposes. 
-        Results should be reviewed by qualified medical professionals. 
-        This tool does not replace clinical diagnosis.
-        """)
+        st.markdown("""
+<div class="callout">
+⚠️ &nbsp;This is an automated research tool.
+Results must be reviewed by a qualified medical professional.
+This software does not constitute a clinical diagnosis.
+</div>
+""", unsafe_allow_html=True)
 
 else:
-    # Instructions when no file is uploaded
-    st.markdown(
-        """
-    <div class="info-box">
-        <h3>👋 Welcome!</h3>
-        <p>Upload a skin image to begin analysis. The system will:</p>
-        <ul>
-            <li>🎯 Detect and segment psoriasis lesions</li>
-            <li>📊 Calculate severity scores</li>
-            <li>🔍 Provide explainable AI visualizations</li>
-            <li>📈 Generate detailed analysis reports</li>
-        </ul>
-        <p><strong>Supported formats:</strong> JPG, PNG, JPEG</p>
+    # ── Welcome / idle state ─────────────────────────────────────────────────────
+    st.markdown("""
+    <div class="welcome-panel">
+        <h2>Upload an image to begin</h2>
+        <p>The model will segment psoriasis lesions, estimate severity,
+        and visualise model attention using Grad-CAM.</p>
+        <div class="steps-row">
+            <div class="step-item">
+                <div class="step-num">1</div>
+                <div class="step-text">Upload image</div>
+            </div>
+            <div class="step-item">
+                <div class="step-num">2</div>
+                <div class="step-text">Adjust threshold</div>
+            </div>
+            <div class="step-item">
+                <div class="step-num">3</div>
+                <div class="step-text">Review results</div>
+            </div>
+        </div>
     </div>
-    """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
-    # Example images section
-    st.markdown("### 📸 Example Analysis")
-    st.markdown(
-        "Upload an image from the `data/images/` folder to see the system in action."
-    )
-
-    # Show sample workflow
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.markdown("#### 1️⃣ Upload")
-        st.markdown("Select a skin image")
-
-    with col2:
-        st.markdown("#### 2️⃣ Process")
-        st.markdown("AI analyzes the image")
-
-    with col3:
-        st.markdown("#### 3️⃣ Results")
-        st.markdown("View segmentation & severity")
-
-# Footer
-st.markdown("---")
-st.markdown(
-    """
-<div style="text-align: center; color: #666; padding: 1rem;">
-    <p>Psoriasis Lesion Analysis System | Powered by Deep Learning & Explainable AI</p>
-    <p style="font-size: 0.8rem;">For research and educational purposes only</p>
+# ── Footer ────────────────────────────────────────────────────────────────────────
+st.markdown("""
+<div style="margin-top:3rem;padding-top:1.5rem;border-top:1px solid #1e293b;
+            display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+    <span style="font-size:0.73rem;color:#334155;">
+        Psoriasis Lesion Analyser &nbsp;·&nbsp; U-Net · ISIC 2018 · Research use only
+    </span>
+    <span style="font-size:0.73rem;color:#334155;">
+        Avg Dice 0.79 &nbsp;·&nbsp; Avg IoU 0.70 &nbsp;·&nbsp; 1 200-image training set
+    </span>
 </div>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)

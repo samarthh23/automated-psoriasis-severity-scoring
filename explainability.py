@@ -9,7 +9,10 @@ from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
 MODEL_PATH = config.get_model_path()
-IMAGE_PATH = "data/images/" + sorted(__import__("os").listdir(config.IMAGE_DIR))[0]
+_image_files = sorted(__import__("os").listdir(config.IMAGE_DIR))
+if not _image_files:
+    raise FileNotFoundError(f"No images found in {config.IMAGE_DIR}. Run dataset_prepare.py first.")
+IMAGE_PATH = __import__("os").path.join(config.IMAGE_DIR, _image_files[0])
 
 IMG_SIZE = config.IMG_SIZE
 DEVICE = config.DEVICE
@@ -17,7 +20,7 @@ DEVICE = config.DEVICE
 
 # Load model
 model = UNet().to(DEVICE)
-model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False))
 model.eval()
 
 

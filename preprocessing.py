@@ -1,8 +1,6 @@
 import cv2
 import os
 import matplotlib.pyplot as plt
-import numpy as np
-
 import config
 
 IMAGE_DIR = config.IMAGE_DIR
@@ -11,8 +9,11 @@ IMG_SIZE = config.IMG_SIZE
 
 
 def load_pair():
-    img_name = os.listdir(IMAGE_DIR)[0]
-    base = img_name.replace(".jpg", "")
+    images = os.listdir(IMAGE_DIR)
+    if not images:
+        raise FileNotFoundError(f"No images found in {IMAGE_DIR}. Run dataset_prepare.py first.")
+    img_name = images[0]
+    base = os.path.splitext(img_name)[0]  # handles .jpg, .jpeg, .png, etc.
     mask_name = base + "_segmentation.png"
 
     img_path = os.path.join(IMAGE_DIR, img_name)
